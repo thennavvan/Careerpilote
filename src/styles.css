@@ -1,0 +1,128 @@
+/* ✨ General Styles */
+body {
+  font-family: 'Poppins', sans-serif;
+  background-color: #f8f9fa;
+  color: #333;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+}
+
+/* Main Container */
+.container {
+  max-width: 900px;
+  width: 90%;
+  margin: 40px auto;
+  padding: 30px;
+  background: white;
+  box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  animation: fadeIn 0.8s ease-in-out;
+}
+
+/* ✨ Fade In Animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 🎨 Header */
+h1, h2 {
+  color: #2c3e50;
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+/* 🏆 Personal Info */
+.personal-info {
+  text-align: center;
+  padding: 25px;
+  background: linear-gradient(135deg, #3498db, #6c5ce7);
+  color: white;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.personal-info p {
+  font-size: 18px;
+  margin: 8px 0;
+}
+
+/* 🏗️ Section Styles */
+.section {
+  margin-bottom: 25px;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* 📜 List Styles */
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+ul li {
+  background: #ecf0f1;
+  margin: 5px 0;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 16px;
+  transition: 0.3s ease-in-out;
+}
+
+ul li:hover {
+  background: #d5d8dc;
+}
+
+/* 💻 Skills */
+.skills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.skill-badge {
+  background: #2ecc71;
+  color: white;
+  padding: 10px 16px;
+  border-radius: 20px;
+  font-weight: bold;
+  transition: 0.3s ease-in-out;
+}
+
+.skill-badge:hover {
+  background: #27ae60;
+}
+
+/* 🔥 Work Experience */
+.experience, .project, .certification {
+  padding: 15px;
+  border-left: 6px solid;
+  margin-bottom: 15px;
+  transition: 0.3s ease-in-out;
+}
+
+.experience { border-color: #e74c3c; }
+.project { border-color: #e67e22; }
+.certification { border-color: #8e44ad; }
+
+.experience:hover, .project:hover, .certification:hover {
+  background: #f8f9fa;
+  transform: scale(1.02);
+}
+
+/* 📱 Responsive */
+@media (max-width: 768px) {
+  .container {
+      width: 95%;
+      padding: 20px;
+  }
+
+  .personal-info {
+      padding: 20px;
+  }
+}
