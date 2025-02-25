@@ -1,24 +1,120 @@
+from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+import shutil
+import requests
+import pdfplumber
+import uvicorn
+import re
+import spacy
+import re
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer
+import numpy as np
+import google.generativeai as genai
+
+app = FastAPI()
+
+
+# Replace with your actual Gemini API key
+GEMINI_API_KEY = "AIzaSyAO9jmF4t1twOuIvwRQGNDjbzwrzXdxLoo"
+
+# Configure Gemini API
+genai.configure(api_key=GEMINI_API_KEY)
+
+# CORS for frontend communication
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+nlp = spacy.load("en_core_web_sm")
+COMMON_SKILLS = [
+    # 🔹 Programming & IT
+    "Python", "Java", "JavaScript", "C++", "C", "Go", "Rust", "Swift", "Kotlin",
+    "Machine Learning", "Deep Learning", "NLP", "Computer Vision", "Artificial Intelligence",
+    "TensorFlow", "PyTorch", "Scikit-learn", "OpenCV", "Transformers",
+    "Keras", "Reinforcement Learning", "Hugging Face", "XGBoost",
+    "Data Science", "Data Analysis", "Big Data", "Pandas", "NumPy",
+    "Matplotlib", "Seaborn", "Spark", "Hadoop", "Apache Kafka",
+    "AWS", "Azure", "GCP", "Docker", "Kubernetes", "Terraform",
+    "CI/CD", "Jenkins", "DevOps", "Cloud Computing",
+    "Django", "Flask", "FastAPI", "React", "Angular", "Node.js",
+    "SQL", "MySQL", "PostgreSQL", "MongoDB", "Redis",
+    "Cybersecurity", "Penetration Testing", "Ethical Hacking",
+    "Git", "GitHub", "Jira", "Agile", "Scrum", "System Design", "Software Development",
+
+    # 🔹 Business & Finance (B.Com, MBA, etc.)
+    "Accounting", "Auditing", "Financial Analysis", "Taxation", "Bookkeeping",
+    "Business Strategy", "Corporate Finance", "Investment Banking", "Financial Modeling",
+    "Economics", "Risk Management", "Wealth Management", "Equity Research",
+    "Cost Accounting", "Management Accounting", "Stock Market Analysis",
+    "Marketing", "Digital Marketing", "SEO", "Social Media Marketing",
+    "Market Research", "Brand Management", "Content Marketing",
+    "Sales", "Lead Generation", "Customer Relationship Management (CRM)",
+    "Human Resources", "Recruitment", "Payroll Management", "Performance Management",
+    "Operations Management", "Supply Chain Management", "Procurement",
+    "Entrepreneurship", "E-Commerce", "Business Analytics",
+
+    # 🔹 Science & Research (B.Sc., M.Sc., PhD)
+    "Physics", "Quantum Mechanics", "Electromagnetism", "Thermodynamics",
+    "Chemistry", "Organic Chemistry", "Inorganic Chemistry", "Analytical Chemistry",
+    "Biology", "Molecular Biology", "Genetics", "Microbiology", "Biotechnology",
+    "Environmental Science", "Geology", "Astronomy", "Bioinformatics",
+    "Mathematics", "Statistics", "Probability Theory", "Linear Algebra",
+    "Operations Research", "Actuarial Science", "Data Mining",
+
+    # 🔹 Healthcare & Life Sciences
+    "Medicine", "Nursing", "Pharmacy", "Biochemistry",
+    "Medical Coding", "Clinical Research", "Epidemiology",
+    "Healthcare Administration", "Nutrition", "Dietetics",
+    "Public Health", "Medical Imaging", "Genomics",
+
+    # 🔹 Arts, Humanities & Communication
+    "English Literature", "Creative Writing", "Journalism",
+    "Public Relations (PR)", "Media Studies", "Linguistics",
+    "Translation", "Content Writing", "Copywriting",
+    "Editing", "Technical Writing", "Screenwriting",
+    "Psychology", "Sociology", "Philosophy", "Political Science",
+    "History", "Cultural Studies", "International Relations",
+    "Education", "Teaching", "Instructional Design",
+
+    # 🔹 Design, Media & Creativity
+    "Graphic Design", "Adobe Photoshop", "Adobe Illustrator", "Canva",
+    "UI/UX Design", "Figma", "Sketch", "User Research",
+    "3D Modeling", "Animation", "Video Editing", "Final Cut Pro",
+    "Photography", "Cinematography", "Sound Editing",
+    "Interior Design", "Fashion Design", "Industrial Design",
+
+    # 🔹 Soft Skills & General Competencies
+    "Communication", "Public Speaking", "Presentation Skills",
+    "Leadership", "Team Management", "Negotiation",
+    "Time Management", "Problem-Solving", "Critical Thinking",
+    "Adaptability", "Decision Making", "Project Management",
+    "Customer Service", "Emotional Intelligence", "Networking",
+    "Conflict Resolution", "Teamwork","Resilience"]
+
 import requests
 
 def parse_resume_affinda(file_path):
-    url =  "https://api.affinda.com/v2/resumes"  # ✅ Correct API endpoint
+    url = "https://api.affinda.com/v2/resumes"
     headers = {
-        "Authorization": "Bearer aff_3370424bea151b9ea57f50387f575ad14cd18d23",  # ✅ Replace with your actual Affinda API key
+        "Authorization": "Bearer aff_3370424bea151b9ea57f50387f575ad14cd18d23",
     }
-    files = {"file": open("Resume_Latchumi_Raman_R.pdf", "rb")}  # ✅ Ensure correct file format (.pdf, .docx)
 
-    response = requests.post(url, headers=headers, files=files)
+    with open(file_path, "rb") as f:
+        files = {"file": f}  # FIXED: Ensure file is sent properly
+
+        response = requests.post(url, headers=headers, files=files)  # Fixed file upload
 
     if response.status_code == 200:
-        return response.json()  # ✅ Successfully parsed resume data
+        return response.json()
     else:
         print(f"Error {response.status_code}: {response.text}")
         return None
-
-# Example usage
-resume_data = parse_resume_affinda("/Resume_Latchumi_Raman_R.pdf")
-print(resume_data)
-
 
 def preprocess_resume_data(resume_data):
     """Preprocess parsed resume data from Affinda and structure key details."""
@@ -111,83 +207,6 @@ def preprocess_resume_data(resume_data):
     }
 
     return processed_data["skills"]
-resume_skills = preprocess_resume_data(resume_data)
-
-
-import pdfplumber
-import re
-import spacy
-
-# Load spaCy NLP model for skill extraction
-nlp = spacy.load("en_core_web_sm")
-
-# 🔹 Expanded Predefined Skill List
-COMMON_SKILLS = [
-    # 🔹 Programming & IT
-    "Python", "Java", "JavaScript", "C++", "C", "Go", "Rust", "Swift", "Kotlin",
-    "Machine Learning", "Deep Learning", "NLP", "Computer Vision", "Artificial Intelligence",
-    "TensorFlow", "PyTorch", "Scikit-learn", "OpenCV", "Transformers",
-    "Keras", "Reinforcement Learning", "Hugging Face", "XGBoost",
-    "Data Science", "Data Analysis", "Big Data", "Pandas", "NumPy",
-    "Matplotlib", "Seaborn", "Spark", "Hadoop", "Apache Kafka",
-    "AWS", "Azure", "GCP", "Docker", "Kubernetes", "Terraform",
-    "CI/CD", "Jenkins", "DevOps", "Cloud Computing",
-    "Django", "Flask", "FastAPI", "React", "Angular", "Node.js",
-    "SQL", "MySQL", "PostgreSQL", "MongoDB", "Redis",
-    "Cybersecurity", "Penetration Testing", "Ethical Hacking",
-    "Git", "GitHub", "Jira", "Agile", "Scrum", "System Design", "Software Development",
-
-    # 🔹 Business & Finance (B.Com, MBA, etc.)
-    "Accounting", "Auditing", "Financial Analysis", "Taxation", "Bookkeeping",
-    "Business Strategy", "Corporate Finance", "Investment Banking", "Financial Modeling",
-    "Economics", "Risk Management", "Wealth Management", "Equity Research",
-    "Cost Accounting", "Management Accounting", "Stock Market Analysis",
-    "Marketing", "Digital Marketing", "SEO", "Social Media Marketing",
-    "Market Research", "Brand Management", "Content Marketing",
-    "Sales", "Lead Generation", "Customer Relationship Management (CRM)",
-    "Human Resources", "Recruitment", "Payroll Management", "Performance Management",
-    "Operations Management", "Supply Chain Management", "Procurement",
-    "Entrepreneurship", "E-Commerce", "Business Analytics",
-
-    # 🔹 Science & Research (B.Sc., M.Sc., PhD)
-    "Physics", "Quantum Mechanics", "Electromagnetism", "Thermodynamics",
-    "Chemistry", "Organic Chemistry", "Inorganic Chemistry", "Analytical Chemistry",
-    "Biology", "Molecular Biology", "Genetics", "Microbiology", "Biotechnology",
-    "Environmental Science", "Geology", "Astronomy", "Bioinformatics",
-    "Mathematics", "Statistics", "Probability Theory", "Linear Algebra",
-    "Operations Research", "Actuarial Science", "Data Mining",
-
-    # 🔹 Healthcare & Life Sciences
-    "Medicine", "Nursing", "Pharmacy", "Biochemistry",
-    "Medical Coding", "Clinical Research", "Epidemiology",
-    "Healthcare Administration", "Nutrition", "Dietetics",
-    "Public Health", "Medical Imaging", "Genomics",
-
-    # 🔹 Arts, Humanities & Communication
-    "English Literature", "Creative Writing", "Journalism",
-    "Public Relations (PR)", "Media Studies", "Linguistics",
-    "Translation", "Content Writing", "Copywriting",
-    "Editing", "Technical Writing", "Screenwriting",
-    "Psychology", "Sociology", "Philosophy", "Political Science",
-    "History", "Cultural Studies", "International Relations",
-    "Education", "Teaching", "Instructional Design",
-
-    # 🔹 Design, Media & Creativity
-    "Graphic Design", "Adobe Photoshop", "Adobe Illustrator", "Canva",
-    "UI/UX Design", "Figma", "Sketch", "User Research",
-    "3D Modeling", "Animation", "Video Editing", "Final Cut Pro",
-    "Photography", "Cinematography", "Sound Editing",
-    "Interior Design", "Fashion Design", "Industrial Design",
-
-    # 🔹 Soft Skills & General Competencies
-    "Communication", "Public Speaking", "Presentation Skills",
-    "Leadership", "Team Management", "Negotiation",
-    "Time Management", "Problem-Solving", "Critical Thinking",
-    "Adaptability", "Decision Making", "Project Management",
-    "Customer Service", "Emotional Intelligence", "Networking",
-    "Conflict Resolution", "Teamwork", "Resilience"
-
-]
 
 def extract_text_from_pdf(pdf_path):
     """Extract raw text from a PDF file."""
@@ -240,32 +259,6 @@ def preprocess_jd(pdf_path):
 
     return job_details,job_details["skills"]
 
-# 🔹 Run Extraction & Preprocessing
-pdf_path = "Job Title.pdf"  # Use the uploaded file path
-processed_jd = preprocess_jd(pdf_path)
-
-# 🔹 Print Cleaned Output
-print("✅ Processed JD Data:")
-print(processed_jd)
-jd_skills = processed_jd[1]
-print(jd_skills)
-
-
-
-jd_skills_str = ", ".join(jd_skills)
-
-
-resume_skills = ", ".join(skill["skill"] for skill in resume_skills)
-
-
-resume_skills = resume_skills.split(", ")
-
-import re
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from sentence_transformers import SentenceTransformer
-import numpy as np
-
 def normalize_skill(skill):
     """Removes extra descriptors like '(Programming Language)' and converts to lowercase."""
     return re.sub(r"\s*\(.*?\)", "", skill).strip()
@@ -311,24 +304,7 @@ def skill_matching_pipeline(resume_skills, jd_skills):
         "tfidf_score": round(tfidf_score, 2),
         "bert_score": round(bert_score, 2),
         "missing_skills": missing_skills
-    }
-
-# 🔹 Run Matching
-results = skill_matching_pipeline(resume_skills, jd_skills)
-
-
-# Extract missing skills from the results dictionary
-missing_skills = results["missing_skills"]
-
-
-import google.generativeai as genai
-
-# Replace with your actual Gemini API key
-GEMINI_API_KEY = "AIzaSyAO9jmF4t1twOuIvwRQGNDjbzwrzXdxLoo"
-
-# Configure Gemini API
-genai.configure(api_key=GEMINI_API_KEY)
-
+        }
 
 def suggest_improvements_with_gemini(missing_skills):
     """Uses Google's Gemini API to generate personalized skill improvement suggestions."""
@@ -351,13 +327,43 @@ def suggest_improvements_with_gemini(missing_skills):
     """
 
     # Call Gemini API
-    model = genai.GenerativeModel("gemini-pro")
+    model = genai.GenerativeModel("gemini-1.5-flash")
     response = model.generate_content(prompt)
+    print(response)
+    return response.text
 
-    # Extract and print suggestions
-    print("✅ Suggested Improvements:")
-    print(response.text)
+@app.post("/analyze-resume-jd")
+async def analyze_resume_jd(resume: UploadFile = File(...), 
+                            jd: UploadFile = File(...)):
+    
+    resume_path = f"temp_{resume.filename}"
+    jd_path = f"temp_{jd.filename}"
 
-# 🔹 Run Function with Missing Skills
+    with open(resume_path, "wb") as buffer:
+        shutil.copyfileobj(resume.file, buffer)
+    
+    with open(jd_path, "wb") as buffer:
+        shutil.copyfileobj(jd.file, buffer)
+    
+    # Call the existing resume and JD processing functions
+    resume_data = parse_resume_affinda(resume_path)
+    processed_resume_skills = preprocess_resume_data(resume_data)
 
-suggest_improvements_with_gemini(missing_skills)
+    processed_jd = preprocess_jd(jd_path)
+    print(processed_jd)
+    processed_jd_skills = processed_jd[1]
+    jd_skills_str = ", ".join(processed_jd_skills)
+    resume_skills = ", ".join(skill["skill"] for skill in processed_resume_skills)
+
+    skill_results = skill_matching_pipeline(resume_skills,processed_jd_skills)
+    gemini_suggestions = suggest_improvements_with_gemini(skill_results["missing_skills"])
+
+    return {
+        "resume_skills": processed_resume_skills,
+        "jd_skills": processed_jd_skills,
+        "matching_results": skill_results,
+        "suggestions": gemini_suggestions
+    }
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=3001)
